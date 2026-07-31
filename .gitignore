@@ -1,0 +1,15 @@
+# dependências e build
+node_modules/
+dist/
+*.tsbuildinfo
+
+# ambiente local
+.env
+.env.*
+!.env.example
+
+# editores e sistema
+.DS_Store
+.idea/
+.vscode/
+*.log
