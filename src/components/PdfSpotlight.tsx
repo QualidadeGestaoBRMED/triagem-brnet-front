@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { ChevronLeftIcon, ChevronRightIcon, Loader2Icon } from "lucide-react"
 import {
   GlobalWorkerOptions,
   getDocument,
@@ -25,9 +26,11 @@ export function PdfSpotlight({
   const [documento, setDocumento] = useState<PDFDocumentProxy | null>(null)
   const [largura, setLargura] = useState(0)
   const [paginaRenderizada, setPaginaRenderizada] = useState(0)
+  const [paginaAtual, setPaginaAtual] = useState(pagina)
   const [escala, setEscala] = useState(1)
   const [altura, setAltura] = useState(0)
   const [erro, setErro] = useState<string | null>(null)
+  const [carregando, setCarregando] = useState(true)
 
   useEffect(() => {
     const el = viewportRef.current
@@ -42,7 +45,11 @@ export function PdfSpotlight({
   useEffect(() => {
     let cancelado = false
     setDocumento(null)
+    setPaginaRenderizada(0)
+    setPaginaAtual(pagina)
+    setAltura(0)
     setErro(null)
+    setCarregando(true)
     const tarefa = getDocument({ url })
     tarefa.promise
       .then((pdf) => {
@@ -62,6 +69,7 @@ export function PdfSpotlight({
         } else {
           setErro("Não foi possível renderizar o documento. Recarregue a página e tente novamente.")
         }
+        setCarregando(false)
       })
     return () => {
       cancelado = true
@@ -70,12 +78,19 @@ export function PdfSpotlight({
   }, [url])
 
   useEffect(() => {
+    setPaginaAtual(pagina)
+  }, [pagina])
+
+  useEffect(() => {
     if (!documento || !largura || !canvasRef.current) return
     let cancelado = false
     renderRef.current?.cancel()
+    viewportRef.current?.scrollTo({ top: 0 })
+    setCarregando(true)
+    setErro(null)
 
     async function renderizar() {
-      const numero = Math.min(Math.max(1, pagina), documento!.numPages)
+      const numero = Math.min(Math.max(1, paginaAtual), documento!.numPages)
       const pdfPage = await documento!.getPage(numero)
       if (cancelado || !canvasRef.current) return
 
@@ -109,14 +124,19 @@ export function PdfSpotlight({
       setEscala(novaEscala)
       setAltura(viewport.height)
       setPaginaRenderizada(numero)
+      setCarregando(false)
     }
 
-    renderizar().catch(() => setErro("Não foi possível renderizar esta página."))
+    renderizar().catch(() => {
+      if (cancelado) return
+      setErro("Não foi possível renderizar esta página.")
+      setCarregando(false)
+    })
     return () => {
       cancelado = true
       renderRef.current?.cancel()
     }
-  }, [documento, largura, pagina])
+  }, [documento, largura, paginaAtual])
 
   const focoAtivo = foco && foco.pagina === paginaRenderizada
   const temFocoAtivo = Boolean(focoAtivo)
@@ -132,25 +152,29 @@ export function PdfSpotlight({
     viewportRef.current.scrollTo({ top: destino, behavior: "smooth" })
   }, [temFocoAtivo, topo, base])
 
+  const numeroExibido = paginaRenderizada || paginaAtual
+
+  function navegarPagina(delta: number) {
+    if (!documento) return
+    setPaginaAtual((atual) =>
+      Math.min(documento.numPages, Math.max(1, atual + delta))
+    )
+  }
+
   return (
     <div ref={viewportRef} className="relative h-full overflow-auto bg-[#e8e9ea]">
       {erro ? (
         <div className="grid h-full place-items-center p-8 text-sm text-slate-600">{erro}</div>
       ) : (
         <div className="relative mx-auto my-4 w-fit bg-white shadow-[0_1px_5px_rgba(15,23,42,.22)]">
-          <canvas ref={canvasRef} className="block" />
+          <canvas
+            ref={canvasRef}
+            className={`block transition-opacity duration-150 ${carregando ? "opacity-0" : "opacity-100"}`}
+          />
           {focoAtivo && altura > 0 && (
             <div className="pointer-events-none absolute inset-0" aria-hidden="true">
               <div
-                className="absolute inset-x-0 top-0 bg-slate-950/58 transition-[height] duration-200"
-                style={{ height: topo }}
-              />
-              <div
-                className="absolute inset-x-0 bottom-0 bg-slate-950/58 transition-[top] duration-200"
-                style={{ top: base }}
-              />
-              <div
-                className="absolute inset-x-0 border-y border-cyan-600/80 shadow-[0_0_0_1px_rgba(255,255,255,.7)] transition-all duration-200"
+                className={`absolute inset-x-0 border-y border-amber-500/90 transition-all duration-200 ${focoFuncao ? "bg-amber-200/15" : "bg-amber-300/35"}`}
                 style={{ top: topo, height: Math.max(12, base - topo) }}
               />
               {focoFuncao && (
@@ -168,9 +192,37 @@ export function PdfSpotlight({
           )}
         </div>
       )}
-      {documento && (
-        <div className="sticky bottom-3 mx-auto w-fit rounded bg-slate-900/80 px-2 py-1 text-[11px] tabular-nums text-white">
-          página {paginaRenderizada || pagina} de {documento.numPages}
+      {!erro && carregando && (
+        <div className="absolute inset-0 z-20 grid place-items-center bg-[#e8e9ea]">
+          <div className="flex items-center gap-2 rounded-md bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+            <Loader2Icon className="size-4 animate-spin text-primary" />
+            Carregando documento…
+          </div>
+        </div>
+      )}
+      {documento && !erro && (
+        <div className="sticky bottom-3 z-30 mx-auto flex w-fit items-center gap-1 rounded-md bg-slate-900/85 p-1 text-xs tabular-nums text-white shadow-lg">
+          <button
+            type="button"
+            onClick={() => navegarPagina(-1)}
+            disabled={numeroExibido <= 1 || carregando}
+            className="rounded p-1 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-35"
+            aria-label="Página anterior do PDF"
+          >
+            <ChevronLeftIcon className="size-4" />
+          </button>
+          <span className="min-w-24 px-2 text-center">
+            Página {numeroExibido} de {documento.numPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => navegarPagina(1)}
+            disabled={numeroExibido >= documento.numPages || carregando}
+            className="rounded p-1 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-35"
+            aria-label="Próxima página do PDF"
+          >
+            <ChevronRightIcon className="size-4" />
+          </button>
         </div>
       )}
     </div>

@@ -4,6 +4,7 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   ExternalLinkIcon,
+  Loader2Icon,
 } from "lucide-react"
 import { nivelConfianca, rotuloGhe, type Exame, type GheDetalhe } from "../api"
 import { cn } from "../lib/utils"
@@ -216,9 +217,9 @@ export function ConferenciaModal({ open, jobId, ghes, onClose }: Props) {
               <h4 className="text-sm font-semibold text-slate-900">Documento</h4>
               <p className="text-xs text-slate-500">
                 {g?.foco?.funcao
-                  ? "GHE em foco · função destacada"
+                  ? "GHE destacado · função em evidência"
                   : g?.foco
-                    ? "A região do GHE está em foco"
+                    ? "Região do GHE destacada"
                     : "Visualização da página de origem"}
               </p>
             </div>
@@ -233,7 +234,10 @@ export function ConferenciaModal({ open, jobId, ghes, onClose }: Props) {
             {pdfUrl && g ? (
               <Suspense fallback={
                 <div className="grid h-full place-items-center text-sm text-slate-500">
-                  Preparando visualizador…
+                  <span className="flex items-center gap-2">
+                    <Loader2Icon className="size-4 animate-spin" />
+                    Preparando visualizador…
+                  </span>
                 </div>
               }>
                 <PdfSpotlight url={pdfUrl} pagina={g.foco?.pagina ?? g.pagina ?? 1} foco={g.foco} />

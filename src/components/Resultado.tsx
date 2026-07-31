@@ -1,12 +1,15 @@
+import { useState } from "react"
 import {
   AlertTriangleIcon,
   CheckCircle2Icon,
   DownloadIcon,
   FileJsonIcon,
+  Loader2Icon,
+  LockKeyholeIcon,
   SearchIcon,
   UploadIcon,
 } from "lucide-react"
-import { rotuloGhe, type Resposta } from "../api"
+import { rotuloGhe, type Resposta, type Review } from "../api"
 import { Button } from "./ui/button"
 import { ConfidenceScore } from "./ConfidenceScore"
 import { FeedbackCard } from "./FeedbackCard"
@@ -17,11 +20,26 @@ type Props = {
   onNovo: () => void
 }
 
+type FeedbackState = {
+  jobId: string
+  review: Review | null
+  loading: boolean
+}
+
 export function Resultado({ dados, onConferir, onNovo }: Props) {
   const r = dados.resumo
   const comAtencao = dados.ghes_detalhe.filter((g) => g.pontos_atencao.length > 0).length
   const avisosDoc = r.avisos_documento ?? []
   const totalAtencao = comAtencao + avisosDoc.length
+  const [feedback, setFeedback] = useState<FeedbackState>({
+    jobId: dados.job_id,
+    review: null,
+    loading: true,
+  })
+  const feedbackAtual = feedback.jobId === dados.job_id
+    ? feedback
+    : { jobId: dados.job_id, review: null, loading: true }
+  const downloadsLiberados = Boolean(feedbackAtual.review)
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-5 animate-in fade-in duration-300">
@@ -33,7 +51,7 @@ export function Resultado({ dados, onConferir, onNovo }: Props) {
             </p>
             <h2 className="text-xl font-semibold tracking-tight text-slate-900">{r.empresa}</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Revise os registros sinalizados antes de usar as planilhas.
+              Revise os registros sinalizados antes de avaliar e baixar as planilhas.
             </p>
           </div>
           <div className="flex items-center gap-2 pt-1 text-sm text-slate-600">
@@ -53,15 +71,8 @@ export function Resultado({ dados, onConferir, onNovo }: Props) {
 
         <div className="flex flex-wrap items-center gap-2 px-6 py-4">
           <Button onClick={onConferir}>
-            <SearchIcon /> Conferir extração
+            <SearchIcon /> 1. Conferir extração
           </Button>
-          {Object.entries(dados.downloads).map(([rotulo, url]) => (
-            <Button key={url} variant="outline"
-              onClick={() => window.open(url, "_blank")}>
-              {url.endsWith(".json") ? <FileJsonIcon /> : <DownloadIcon />}
-              {rotulo}
-            </Button>
-          ))}
           <Button variant="ghost" onClick={onNovo} className="ml-auto">
             <UploadIcon /> Novo documento
           </Button>
@@ -84,7 +95,9 @@ export function Resultado({ dados, onConferir, onNovo }: Props) {
         <div className="mb-4 flex items-baseline justify-between">
           <div>
             <h3 className="text-sm font-semibold text-slate-900">Registros extraídos</h3>
-            <p className="mt-0.5 text-xs text-slate-500">Selecione Conferir extração para comparar com o PDF.</p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Selecione Conferir extração para comparar com o PDF.
+            </p>
           </div>
           <span className="text-xs tabular-nums text-slate-500">{r.ghes.length} registros</span>
         </div>
@@ -119,7 +132,55 @@ export function Resultado({ dados, onConferir, onNovo }: Props) {
         </div>
       </section>
 
-      <FeedbackCard jobId={dados.job_id} />
+      <FeedbackCard
+        jobId={dados.job_id}
+        onStateChange={(review, loading) =>
+          setFeedback({ jobId: dados.job_id, review, loading })
+        }
+      />
+
+      <section className="rounded-lg border bg-white px-6 py-5">
+        <div className="flex items-center gap-2">
+          {downloadsLiberados
+            ? <CheckCircle2Icon className="size-4 text-emerald-700" />
+            : <LockKeyholeIcon className="size-4 text-slate-500" />}
+          <h3 className="text-sm font-semibold text-slate-900">3. Baixe os arquivos</h3>
+        </div>
+
+        {feedbackAtual.loading ? (
+          <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
+            <Loader2Icon className="size-4 animate-spin" />
+            Verificando avaliação…
+          </div>
+        ) : downloadsLiberados ? (
+          <>
+            <p className="mt-1 text-xs text-slate-500">
+              Avaliação registrada. Os arquivos desta execução estão liberados.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {Object.entries(dados.downloads).map(([rotulo, url]) => (
+                <Button
+                  key={url}
+                  variant="outline"
+                  onClick={() => window.open(url, "_blank")}
+                >
+                  {url.endsWith(".json") ? <FileJsonIcon /> : <DownloadIcon />}
+                  {rotulo}
+                </Button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="mt-4 rounded-md border border-dashed bg-slate-50 px-4 py-4">
+            <p className="text-sm font-medium text-slate-700">
+              Salve a avaliação para liberar os downloads.
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Se houve ajuste ou erro, informe também a categoria e descreva o ocorrido.
+            </p>
+          </div>
+        )}
+      </section>
     </div>
   )
 }
