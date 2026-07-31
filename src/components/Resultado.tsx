@@ -6,7 +6,8 @@ import {
   SearchIcon,
   UploadIcon,
 } from "lucide-react"
-import { rotuloGhe, type Resposta } from "../api"
+import { toast } from "sonner"
+import { baixarArquivo, rotuloGhe, type Resposta } from "../api"
 import { Button } from "./ui/button"
 import { ConfidenceScore } from "./ConfidenceScore"
 import { FeedbackCard } from "./FeedbackCard"
@@ -57,7 +58,11 @@ export function Resultado({ dados, onConferir, onNovo }: Props) {
           </Button>
           {Object.entries(dados.downloads).map(([rotulo, url]) => (
             <Button key={url} variant="outline"
-              onClick={() => window.open(url, "_blank")}>
+              onClick={() => {
+                void baixarArquivo(url).catch((error) =>
+                  toast.error(error instanceof Error ? error.message : String(error))
+                )
+              }}>
               {url.endsWith(".json") ? <FileJsonIcon /> : <DownloadIcon />}
               {rotulo}
             </Button>

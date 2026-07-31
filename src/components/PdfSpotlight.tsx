@@ -43,7 +43,7 @@ export function PdfSpotlight({
     let cancelado = false
     setDocumento(null)
     setErro(null)
-    const tarefa = getDocument({ url })
+    const tarefa = getDocument({ url, withCredentials: true })
     tarefa.promise
       .then((pdf) => {
         if (!cancelado) setDocumento(pdf)

@@ -157,27 +157,75 @@ export type ExtracaoHistorico = {
   review: Review | null
 }
 
+const API_BASE_URL = (
+  import.meta.env.VITE_API_URL ?? "https://triagem-brnet-back.onrender.com"
+).replace(/\/+$/, "")
+
+export function apiUrl(path: string): string {
+  if (/^https?:\/\//.test(path)) return path
+  const caminho = path.startsWith("/") ? path : `/${path}`
+  return `${API_BASE_URL}${caminho}`
+}
+
+export function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(apiUrl(path), { ...init, credentials: "include" })
+}
+
 async function lerJson(resp: Response): Promise<unknown> {
   if (resp.status === 401) throw new SessaoExpirada()
   try {
     return await resp.json()
   } catch {
     // corpo vazio/não-JSON: a requisição não chegou na API da Triagem BR NET
-    // (proxy apontando para o serviço errado, API fora do ar, etc.)
     throw new Error(
       `resposta inválida do servidor (HTTP ${resp.status}). ` +
-      "Verifique se a API da Triagem BR NET está no ar e se o proxy aponta para ela " +
-      "(padrão: container na porta 8890)."
+      "Verifique se a API está no ar e se VITE_API_URL está correto."
     )
   }
 }
 
 async function requisicaoJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const resp = await fetch(url, init)
+  const resp = await apiFetch(url, init)
   if (resp.status === 204) return undefined as T
   const dados = (await lerJson(resp)) as { detail?: string } & T
   if (!resp.ok) throw new Error(dados.detail ?? `falha na requisição (HTTP ${resp.status})`)
   return dados
+}
+
+async function obterBlob(path: string): Promise<Blob> {
+  const response = await apiFetch(path)
+  if (!response.ok) {
+    const dados = (await lerJson(response)) as { detail?: string }
+    throw new Error(dados.detail ?? `falha ao baixar arquivo (HTTP ${response.status})`)
+  }
+  return response.blob()
+}
+
+export async function baixarArquivo(path: string): Promise<void> {
+  const blob = await obterBlob(path)
+  const objectUrl = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = objectUrl
+  link.download = decodeURIComponent(path.split("/").pop() || "arquivo")
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000)
+}
+
+export async function abrirArquivoNovaAba(path: string): Promise<void> {
+  const janela = window.open("about:blank", "_blank")
+  if (!janela) throw new Error("O navegador bloqueou a nova aba.")
+  janela.opener = null
+  try {
+    const blob = await obterBlob(path)
+    const objectUrl = URL.createObjectURL(blob)
+    janela.location.replace(objectUrl)
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 5 * 60_000)
+  } catch (error) {
+    janela.close()
+    throw error
+  }
 }
 
 export async function login(usuario: string, senha: string): Promise<UsuarioSessao> {
@@ -189,13 +237,13 @@ export async function login(usuario: string, senha: string): Promise<UsuarioSess
 }
 
 export async function usuarioAtual(): Promise<UsuarioSessao | null> {
-  const resp = await fetch("/api/me").catch(() => null)
+  const resp = await apiFetch("/api/me").catch(() => null)
   if (!resp?.ok) return null
   return (await resp.json()) as UsuarioSessao
 }
 
 export async function logout(): Promise<void> {
-  await fetch("/api/logout", { method: "POST" }).catch(() => undefined)
+  await apiFetch("/api/logout", { method: "POST" }).catch(() => undefined)
 }
 
 type StatusJob =
@@ -208,7 +256,7 @@ const POLL_MS = 3000
 export async function processarPdf(arquivo: File): Promise<Resposta> {
   const form = new FormData()
   form.append("pdf", arquivo)
-  const resp = await fetch("/api/processar", { method: "POST", body: form })
+  const resp = await apiFetch("/api/processar", { method: "POST", body: form })
   const inicio = (await lerJson(resp)) as { job_id?: string; detail?: string }
   if (!resp.ok || !inicio.job_id) {
     throw new Error(inicio.detail ?? "falha no processamento")
@@ -217,7 +265,7 @@ export async function processarPdf(arquivo: File): Promise<Resposta> {
   // o processamento roda em fila no servidor; acompanha até concluir
   for (;;) {
     await new Promise((r) => setTimeout(r, POLL_MS))
-    const respStatus = await fetch(`/api/status/${encodeURIComponent(inicio.job_id)}`)
+    const respStatus = await apiFetch(`/api/status/${encodeURIComponent(inicio.job_id)}`)
     const status = (await lerJson(respStatus)) as StatusJob & { detail?: string }
     if (!respStatus.ok) throw new Error(status.detail ?? "falha ao consultar o job")
     if (status.status === "concluido") return status.resposta

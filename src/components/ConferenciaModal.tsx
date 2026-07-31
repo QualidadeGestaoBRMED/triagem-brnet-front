@@ -5,7 +5,15 @@ import {
   ChevronUpIcon,
   ExternalLinkIcon,
 } from "lucide-react"
-import { nivelConfianca, rotuloGhe, type Exame, type GheDetalhe } from "../api"
+import { toast } from "sonner"
+import {
+  abrirArquivoNovaAba,
+  apiUrl,
+  nivelConfianca,
+  rotuloGhe,
+  type Exame,
+  type GheDetalhe,
+} from "../api"
 import { cn } from "../lib/utils"
 import { Button } from "./ui/button"
 import { DialogLite } from "./ui/dialog-lite"
@@ -36,7 +44,7 @@ function perfisDoExame(e: Exame): string[] {
 export function ConferenciaModal({ open, jobId, ghes, onClose }: Props) {
   const [selecionado, setSelecionado] = useState(0)
   const [soAtencao, setSoAtencao] = useState(false)
-  const pdfUrl = jobId ? `/api/pdf/${encodeURIComponent(jobId)}` : null
+  const pdfUrl = jobId ? apiUrl(`/api/pdf/${encodeURIComponent(jobId)}`) : null
 
   useEffect(() => {
     if (open) {
@@ -224,7 +232,11 @@ export function ConferenciaModal({ open, jobId, ghes, onClose }: Props) {
             </div>
             {pdfUrl && (
               <Button variant="ghost" size="sm"
-                onClick={() => window.open(pdfUrl, "_blank", "noopener,noreferrer")}>
+                onClick={() => {
+                  void abrirArquivoNovaAba(pdfUrl).catch((error) =>
+                    toast.error(error instanceof Error ? error.message : String(error))
+                  )
+                }}>
                 <ExternalLinkIcon /> Abrir PDF
               </Button>
             )}

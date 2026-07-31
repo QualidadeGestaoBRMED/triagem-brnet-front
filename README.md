@@ -3,11 +3,9 @@
 Interface React/Vite para ingestão e conferência de PCMSOs, histórico de
 extrações, feedback estruturado e administração de usuários.
 
-O backend e o banco não fazem parte deste repositório. O navegador usa apenas
-rotas relativas `/api/*`:
-
-- em desenvolvimento, o Vite encaminha para `VITE_API_TARGET`;
-- na Vercel, `vercel.json` encaminha para o serviço do backend no Render.
+O backend e o banco não fazem parte deste repositório. O navegador acessa
+diretamente a API definida por `VITE_API_URL`; PDFs, planilhas e chamadas de
+API não passam por proxy da Vercel.
 
 ## Desenvolvimento
 
@@ -17,7 +15,8 @@ npm install
 npm run dev
 ```
 
-Por padrão, a API deve estar em `http://localhost:8890`.
+Por padrão, a API local deve estar em `http://localhost:8890`. O backend
+precisa permitir a origem `http://localhost:5173`.
 
 ## Validação
 
@@ -31,10 +30,12 @@ npm run build
 2. Framework: Vite.
 3. Build command: `npm run build`.
 4. Output directory: `dist`.
-5. Confira em `vercel.json` se o destino aponta para a URL real do backend.
+5. Configure `VITE_API_URL` somente se a URL do Render diferir do fallback
+   `https://triagem-brnet-back.onrender.com`.
 
-Nenhuma credencial é necessária no front. A sessão continua usando cookie
-`httpOnly`; o rewrite faz API e interface aparecerem sob a mesma origem.
+Nenhuma credencial secreta é armazenada no front. A sessão usa cookie
+`HttpOnly`, `Secure`, `SameSite=None` e `Partitioned`, aceito pelo
+backend apenas para a origem oficial da Vercel.
 
 ## Documentação
 
