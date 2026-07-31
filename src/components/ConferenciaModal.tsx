@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react"
 import {
   AlertTriangleIcon,
+  ArrowRightIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   ExternalLinkIcon,
@@ -250,6 +251,16 @@ export function ConferenciaModal({ open, jobId, ghes, onClose }: Props) {
           </div>
         </section>
       </div>
+
+      <footer className="flex h-14 shrink-0 items-center justify-between gap-3 border-t px-5">
+        <span className="text-xs text-slate-500">
+          Registro {posicao >= 0 ? posicao + 1 : 1} de {visiveis.length} · a conferência é só
+          leitura, nada aqui altera a extração
+        </span>
+        <Button onClick={onClose}>
+          Concluir conferência <ArrowRightIcon />
+        </Button>
+      </footer>
     </DialogLite>
   )
 }

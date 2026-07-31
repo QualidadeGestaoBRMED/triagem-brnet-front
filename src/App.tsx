@@ -98,7 +98,13 @@ export default function App() {
               <ProcessingStepper etapaAtual={etapa} nomeArquivo={arquivo?.name ?? ""} />
             )}
             {estado === "completed" && dados && (
-              <Resultado dados={dados} onConferir={() => setConferindo(true)} onNovo={novo} />
+              <Resultado
+                key={dados.job_id}
+                dados={dados}
+                conferenciaAberta={conferindo}
+                onConferir={() => setConferindo(true)}
+                onNovo={novo}
+              />
             )}
           </>
         )}

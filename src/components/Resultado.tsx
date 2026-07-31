@@ -1,48 +1,128 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   AlertTriangleIcon,
   CheckCircle2Icon,
   DownloadIcon,
   FileJsonIcon,
   Loader2Icon,
-  LockKeyholeIcon,
   SearchIcon,
   UploadIcon,
 } from "lucide-react"
-import { rotuloGhe, type Resposta, type Review } from "../api"
+import { obterReview, rotuloGhe, type Resposta, type Review } from "../api"
 import { Button } from "./ui/button"
 import { ConfidenceScore } from "./ConfidenceScore"
 import { FeedbackCard } from "./FeedbackCard"
+import { ImportacaoCard } from "./ImportacaoCard"
+import { PassoCard, TrilhaPassos, type EstadoPasso } from "./FluxoPassos"
 
 type Props = {
   dados: Resposta
+  conferenciaAberta: boolean
   onConferir: () => void
   onNovo: () => void
 }
 
-type FeedbackState = {
-  jobId: string
-  review: Review | null
-  loading: boolean
+const TITULOS = [
+  "Conferir extração",
+  "Avaliar resultado",
+  "Baixar arquivos",
+  "Importar no BR NET",
+]
+
+const ROTULO_AVALIACAO: Record<string, string> = {
+  APROVADO_SEM_CORRECOES: "Resultado correto",
+  APROVADO_COM_CORRECOES: "Correto após ajustes",
+  REPROVADO: "Resultado incorreto",
 }
 
-export function Resultado({ dados, onConferir, onNovo }: Props) {
+export function Resultado({ dados, conferenciaAberta, onConferir, onNovo }: Props) {
   const r = dados.resumo
   const comAtencao = dados.ghes_detalhe.filter((g) => g.pontos_atencao.length > 0).length
   const avisosDoc = r.avisos_documento ?? []
   const totalAtencao = comAtencao + avisosDoc.length
-  const [feedback, setFeedback] = useState<FeedbackState>({
-    jobId: dados.job_id,
-    review: null,
-    loading: true,
-  })
-  const feedbackAtual = feedback.jobId === dados.job_id
-    ? feedback
-    : { jobId: dados.job_id, review: null, loading: true }
-  const downloadsLiberados = Boolean(feedbackAtual.review)
+  const arquivos = Object.entries(dados.downloads)
+
+  const [review, setReview] = useState<Review | null>(null)
+  const [carregando, setCarregando] = useState(true)
+  const [conferiu, setConferiu] = useState(false)
+  const [baixou, setBaixou] = useState(false)
+  const [ativo, setAtivo] = useState(1)
+  const cards = useRef<Record<number, HTMLDivElement | null>>({})
+  const estavaAberta = useRef(false)
+
+  useEffect(() => {
+    let vivo = true
+    obterReview(dados.job_id)
+      .then((salvo) => {
+        if (!vivo) return
+        const avaliado = salvo?.status === "NAO_AVALIADO" ? null : salvo
+        setReview(avaliado)
+        // execução já avaliada em outra sessão: os passos anteriores estão vencidos
+        if (avaliado) {
+          setConferiu(true)
+          setBaixou(true)
+          setAtivo(4)
+        }
+      })
+      .finally(() => {
+        if (vivo) setCarregando(false)
+      })
+    return () => {
+      vivo = false
+    }
+  }, [dados.job_id])
+
+  // fechar a conferência leva direto para a avaliação, sem depender de rolagem
+  useEffect(() => {
+    if (conferenciaAberta) {
+      setConferiu(true)
+      estavaAberta.current = true
+      return
+    }
+    if (estavaAberta.current) {
+      estavaAberta.current = false
+      setAtivo((atual) => (atual === 1 ? 2 : atual))
+    }
+  }, [conferenciaAberta])
+
+  useEffect(() => {
+    cards.current[ativo]?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+  }, [ativo])
+
+  const concluido = [conferiu, Boolean(review), baixou, review?.import_success != null]
+  const bloqueado = [false, !conferiu, !review, !baixou]
+
+  function estadoDe(numero: number): EstadoPasso {
+    const i = numero - 1
+    if (bloqueado[i]) return "bloqueado"
+    if (concluido[i]) return "concluido"
+    return numero === ativo ? "ativo" : "pendente"
+  }
+
+  function abrir(numero: number) {
+    if (bloqueado[numero - 1]) return
+    setAtivo((atual) => (atual === numero ? 0 : numero))
+  }
+
+  function baixar(url: string) {
+    window.open(url, "_blank")
+    setBaixou(true)
+    setAtivo(4)
+  }
+
+  function aoSalvarAvaliacao(salvo: Review) {
+    setReview(salvo)
+    setAtivo(3)
+  }
+
+  const passos = TITULOS.map((titulo, i) => ({
+    numero: i + 1,
+    titulo,
+    estado: estadoDe(i + 1),
+  }))
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-5 animate-in fade-in duration-300">
+    <div className="mx-auto flex max-w-5xl flex-col gap-4 animate-in fade-in duration-300">
       <section className="overflow-hidden rounded-lg border bg-white">
         <div className="flex items-start justify-between gap-5 px-6 py-5">
           <div>
@@ -51,15 +131,20 @@ export function Resultado({ dados, onConferir, onNovo }: Props) {
             </p>
             <h2 className="text-xl font-semibold tracking-tight text-slate-900">{r.empresa}</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Revise os registros sinalizados antes de avaliar e baixar as planilhas.
+              Siga os quatro passos abaixo: conferir, avaliar, baixar e importar.
             </p>
           </div>
-          <div className="flex items-center gap-2 pt-1 text-sm text-slate-600">
-            {dados.validacao_ok ? (
-              <><CheckCircle2Icon className="size-4 text-emerald-700" /> Leitores concordam</>
-            ) : (
-              <><AlertTriangleIcon className="size-4 text-amber-700" /> Divergências encontradas</>
-            )}
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <span className="flex items-center gap-2 text-sm text-slate-600">
+              {dados.validacao_ok ? (
+                <><CheckCircle2Icon className="size-4 text-emerald-700" /> Leitores concordam</>
+              ) : (
+                <><AlertTriangleIcon className="size-4 text-amber-700" /> Divergências encontradas</>
+              )}
+            </span>
+            <Button variant="ghost" size="sm" onClick={onNovo}>
+              <UploadIcon /> Novo documento
+            </Button>
           </div>
         </div>
 
@@ -69,14 +154,7 @@ export function Resultado({ dados, onConferir, onNovo }: Props) {
           <Numero rotulo="Para revisar" valor={totalAtencao} destaque={totalAtencao > 0} />
         </dl>
 
-        <div className="flex flex-wrap items-center gap-2 px-6 py-4">
-          <Button onClick={onConferir}>
-            <SearchIcon /> 1. Conferir extração
-          </Button>
-          <Button variant="ghost" onClick={onNovo} className="ml-auto">
-            <UploadIcon /> Novo documento
-          </Button>
-        </div>
+        <TrilhaPassos passos={passos} ativo={ativo} onIr={abrir} />
       </section>
 
       {(avisosDoc.length > 0 || dados.divergencias.length > 0) && (
@@ -91,96 +169,142 @@ export function Resultado({ dados, onConferir, onNovo }: Props) {
         </section>
       )}
 
-      <section className="rounded-lg border bg-white px-6 py-5">
-        <div className="mb-4 flex items-baseline justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900">Registros extraídos</h3>
-            <p className="mt-0.5 text-xs text-slate-500">
-              Selecione Conferir extração para comparar com o PDF.
-            </p>
+      <div ref={(el) => { cards.current[1] = el }}>
+        <PassoCard
+          numero={1}
+          titulo="Conferir extração"
+          estado={estadoDe(1)}
+          resumo={
+            conferiu
+              ? `${r.ghes.length} registros conferidos lado a lado com o PDF`
+              : `${r.ghes.length} registros extraídos · compare com o PDF antes de avaliar`
+          }
+          aberto={ativo === 1}
+          onAlternar={() => abrir(1)}
+          acao={
+            <Button size="sm" variant={conferiu ? "outline" : "default"} onClick={onConferir}>
+              <SearchIcon /> {conferiu ? "Abrir de novo" : "Abrir conferência"}
+            </Button>
+          }
+        >
+          <p className="text-sm text-slate-600">
+            A conferência abre o PDF ao lado dos dados extraídos, com a região de cada registro
+            destacada. Ao fechar, você segue para a avaliação.
+          </p>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-y bg-slate-50/70 text-left text-[11px] uppercase tracking-[.08em] text-slate-500">
+                  <th className="px-3 py-2.5 font-semibold">Setor / função</th>
+                  <th className="px-3 py-2.5 text-right font-semibold">Riscos</th>
+                  <th className="px-3 py-2.5 text-right font-semibold">Exames</th>
+                  <th className="px-3 py-2.5 text-right font-semibold">Funções</th>
+                  <th className="px-3 py-2.5 text-right font-semibold">Confiança</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {r.ghes.map((g, i) => {
+                  const detalhe = dados.ghes_detalhe[i]
+                  return (
+                    <tr key={dados.ghes_detalhe[i]?.codigo ?? i} className="text-slate-700 hover:bg-slate-50/70">
+                      <td className="px-3 py-2.5 text-slate-800">{rotuloGhe(dados.ghes_detalhe, i)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{g.riscos}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{g.exames}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{g.funcoes}</td>
+                      <td className="px-3 py-2.5 text-right text-xs">
+                        {detalhe && <ConfidenceScore ghe={detalhe} />}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
-          <span className="text-xs tabular-nums text-slate-500">{r.ghes.length} registros</span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-y bg-slate-50/70 text-left text-[11px] uppercase tracking-[.08em] text-slate-500">
-                <th className="px-3 py-2.5 font-semibold">Setor / função</th>
-                <th className="px-3 py-2.5 text-right font-semibold">Riscos</th>
-                <th className="px-3 py-2.5 text-right font-semibold">Exames</th>
-                <th className="px-3 py-2.5 text-right font-semibold">Funções</th>
-                <th className="px-3 py-2.5 text-right font-semibold">Confiança</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {r.ghes.map((g, i) => {
-                const detalhe = dados.ghes_detalhe[i]
-                return (
-                  <tr key={dados.ghes_detalhe[i]?.codigo ?? i} className="text-slate-700 hover:bg-slate-50/70">
-                    <td className="px-3 py-2.5 text-slate-800">{rotuloGhe(dados.ghes_detalhe, i)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{g.riscos}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{g.exames}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{g.funcoes}</td>
-                    <td className="px-3 py-2.5 text-right text-xs">
-                      {detalhe && <ConfidenceScore ghe={detalhe} />}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
+        </PassoCard>
+      </div>
 
-      <FeedbackCard
-        jobId={dados.job_id}
-        onStateChange={(review, loading) =>
-          setFeedback({ jobId: dados.job_id, review, loading })
-        }
-      />
+      <div ref={(el) => { cards.current[2] = el }}>
+        <PassoCard
+          numero={2}
+          titulo="Avaliar resultado"
+          estado={estadoDe(2)}
+          resumo={
+            review
+              ? `${ROTULO_AVALIACAO[review.status] ?? review.status} · por ${review.reviewed_by}`
+              : conferiu
+                ? "Obrigatório para liberar os arquivos"
+                : "Disponível depois de abrir a conferência"
+          }
+          aberto={ativo === 2}
+          onAlternar={() => abrir(2)}
+        >
+          {carregando ? (
+            <p className="flex items-center gap-2 text-sm text-slate-500">
+              <Loader2Icon className="size-4 animate-spin" /> Carregando avaliação…
+            </p>
+          ) : (
+            <FeedbackCard
+              jobId={dados.job_id}
+              review={review}
+              onSalvo={aoSalvarAvaliacao}
+            />
+          )}
+        </PassoCard>
+      </div>
 
-      <section className="rounded-lg border bg-white px-6 py-5">
-        <div className="flex items-center gap-2">
-          {downloadsLiberados
-            ? <CheckCircle2Icon className="size-4 text-emerald-700" />
-            : <LockKeyholeIcon className="size-4 text-slate-500" />}
-          <h3 className="text-sm font-semibold text-slate-900">3. Baixe os arquivos</h3>
-        </div>
-
-        {feedbackAtual.loading ? (
-          <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
-            <Loader2Icon className="size-4 animate-spin" />
-            Verificando avaliação…
+      <div ref={(el) => { cards.current[3] = el }}>
+        <PassoCard
+          numero={3}
+          titulo="Baixar arquivos"
+          estado={estadoDe(3)}
+          resumo={
+            baixou
+              ? "Arquivos gerados nesta execução já baixados"
+              : review
+                ? `${arquivos.length} arquivos liberados`
+                : "Liberado depois da avaliação"
+          }
+          aberto={ativo === 3}
+          onAlternar={() => abrir(3)}
+        >
+          <p className="text-sm text-slate-600">
+            Planilhas no formato de importação do BR NET, mais o JSON da extração.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {arquivos.map(([rotulo, url]) => (
+              <Button key={url} variant="outline" onClick={() => baixar(url)}>
+                {url.endsWith(".json") ? <FileJsonIcon /> : <DownloadIcon />}
+                {rotulo}
+              </Button>
+            ))}
           </div>
-        ) : downloadsLiberados ? (
-          <>
-            <p className="mt-1 text-xs text-slate-500">
-              Avaliação registrada. Os arquivos desta execução estão liberados.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {Object.entries(dados.downloads).map(([rotulo, url]) => (
-                <Button
-                  key={url}
-                  variant="outline"
-                  onClick={() => window.open(url, "_blank")}
-                >
-                  {url.endsWith(".json") ? <FileJsonIcon /> : <DownloadIcon />}
-                  {rotulo}
-                </Button>
-              ))}
-            </div>
-          </>
-        ) : (
-          <div className="mt-4 rounded-md border border-dashed bg-slate-50 px-4 py-4">
-            <p className="text-sm font-medium text-slate-700">
-              Salve a avaliação para liberar os downloads.
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              Se houve ajuste ou erro, informe também a categoria e descreva o ocorrido.
-            </p>
-          </div>
-        )}
-      </section>
+        </PassoCard>
+      </div>
+
+      <div ref={(el) => { cards.current[4] = el }}>
+        <PassoCard
+          numero={4}
+          titulo="Importar no BR NET"
+          estado={estadoDe(4)}
+          resumo={
+            review?.import_success === true
+              ? "Importou sem problemas"
+              : review?.import_success === false
+                ? "Não importou — motivo registrado"
+                : baixou
+                  ? "Conte como foi a importação quando testar"
+                  : "Disponível depois de baixar os arquivos"
+          }
+          aberto={ativo === 4}
+          onAlternar={() => abrir(4)}
+        >
+          {review ? (
+            <ImportacaoCard jobId={dados.job_id} review={review} onSalvo={setReview} />
+          ) : (
+            <p className="text-sm text-slate-500">Avalie o resultado primeiro.</p>
+          )}
+        </PassoCard>
+      </div>
     </div>
   )
 }

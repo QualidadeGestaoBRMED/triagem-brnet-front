@@ -173,8 +173,17 @@ export function PdfSpotlight({
           />
           {focoAtivo && altura > 0 && (
             <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+              {/* escurece o resto da página; a região do registro fica limpa */}
               <div
-                className={`absolute inset-x-0 border-y border-amber-500/90 transition-all duration-200 ${focoFuncao ? "bg-amber-200/15" : "bg-amber-300/35"}`}
+                className="absolute inset-x-0 top-0 bg-slate-950/58 transition-[height] duration-200"
+                style={{ height: topo }}
+              />
+              <div
+                className="absolute inset-x-0 bottom-0 bg-slate-950/58 transition-[top] duration-200"
+                style={{ top: base }}
+              />
+              <div
+                className="absolute inset-x-0 border-y border-cyan-600/80 shadow-[0_0_0_1px_rgba(255,255,255,.7)] transition-all duration-200"
                 style={{ top: topo, height: Math.max(12, base - topo) }}
               />
               {focoFuncao && (
@@ -214,6 +223,15 @@ export function PdfSpotlight({
           <span className="min-w-24 px-2 text-center">
             Página {numeroExibido} de {documento.numPages}
           </span>
+          {foco && foco.pagina !== numeroExibido && (
+            <button
+              type="button"
+              onClick={() => setPaginaAtual(foco.pagina)}
+              className="rounded px-2 py-1 text-white/80 hover:bg-white/15 hover:text-white"
+            >
+              voltar ao destaque
+            </button>
+          )}
           <button
             type="button"
             onClick={() => navegarPagina(1)}
