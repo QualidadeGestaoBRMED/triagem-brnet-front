@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import {
   FileSearchIcon,
+  FileStackIcon,
   HistoryIcon,
   LogOutIcon,
   UsersIcon,
@@ -40,6 +41,9 @@ export function AppShell({
         <nav className="flex flex-col gap-1 px-3">
           <SidebarItem ativo={pagina === "ingestao"} icone={<FileSearchIcon />} onClick={() => onNavegar("ingestao")}>
             Ingestão de PCMSO
+          </SidebarItem>
+          <SidebarItem desativado icone={<FileStackIcon />} onClick={() => {}}>
+            Ingestão de PGR
           </SidebarItem>
           <SidebarItem ativo={pagina === "historico"} icone={<HistoryIcon />} onClick={() => onNavegar("historico")}>
             Histórico
@@ -85,27 +89,36 @@ function SidebarItem({
   children,
   icone,
   ativo,
+  desativado,
   onClick,
 }: {
   children: ReactNode
   icone: ReactNode
   ativo?: boolean
+  desativado?: boolean
   onClick: () => void
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={desativado}
+      title={desativado ? "Em breve" : undefined}
       className={cn(
         "flex h-9 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-medium",
-        ativo
-          ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-          : "opacity-75 hover:bg-white/10 hover:opacity-100",
+        desativado
+          ? "cursor-not-allowed opacity-35"
+          : ativo
+            ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+            : "opacity-75 hover:bg-white/10 hover:opacity-100",
         "[&_svg]:size-4"
       )}
     >
       {icone}
       {children}
+      {desativado && (
+        <span className="ml-auto text-[10px] uppercase tracking-wide">em breve</span>
+      )}
     </button>
   )
 }
