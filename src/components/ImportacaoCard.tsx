@@ -8,7 +8,7 @@ import { Button } from "./ui/button"
 const OPCOES: Array<{ valor: boolean | null; rotulo: string; descricao: string }> = [
   { valor: true, rotulo: "Importou", descricao: "O BR NET aceitou as planilhas." },
   { valor: false, rotulo: "Não importou", descricao: "O BR NET recusou ou importou errado." },
-  { valor: null, rotulo: "Ainda não testei", descricao: "Volto aqui depois de importar." },
+  { valor: null, rotulo: "Ainda não testei", descricao: "Fica pendente no histórico." },
 ]
 
 type Props = {
@@ -19,9 +19,9 @@ type Props = {
 
 export function ImportacaoCard({ jobId, review, onSalvo }: Props) {
   const [importou, setImportou] = useState<boolean | null>(review.import_success)
+  const [respondeu, setRespondeu] = useState(review.import_success !== null)
   const [detalhe, setDetalhe] = useState(notaDaImportacao(review.notes))
   const [salvando, setSalvando] = useState(false)
-  const [alterado, setAlterado] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
   async function enviar() {
@@ -34,7 +34,6 @@ export function ImportacaoCard({ jobId, review, onSalvo }: Props) {
         import_success: importou,
         notes: juntarNotas(notaDaAvaliacao(review.notes), importou === false ? detalhe : ""),
       })
-      setAlterado(false)
       onSalvo(salvo)
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e))
@@ -57,12 +56,12 @@ export function ImportacaoCard({ jobId, review, onSalvo }: Props) {
             type="button"
             onClick={() => {
               setImportou(opcao.valor)
-              setAlterado(true)
+              setRespondeu(true)
               setErro(null)
             }}
             className={cn(
               "cursor-pointer rounded-md border px-4 py-3 text-left transition-colors",
-              importou === opcao.valor
+              respondeu && importou === opcao.valor
                 ? "border-secondary bg-cyan-50/60 ring-1 ring-secondary/20"
                 : "hover:border-slate-400 hover:bg-slate-50"
             )}
@@ -80,10 +79,7 @@ export function ImportacaoCard({ jobId, review, onSalvo }: Props) {
           </span>
           <textarea
             value={detalhe}
-            onChange={(e) => {
-              setDetalhe(e.target.value)
-              setAlterado(true)
-            }}
+            onChange={(e) => setDetalhe(e.target.value)}
             rows={3}
             maxLength={2000}
             placeholder="Ex.: a planilha PCMSO foi recusada por exame sem periodicidade."
@@ -100,11 +96,11 @@ export function ImportacaoCard({ jobId, review, onSalvo }: Props) {
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
         <p className="text-xs text-slate-500">
-          Enquanto este resultado estiver aberto você pode voltar aqui e atualizar a resposta.
+          Registrar encerra esta triagem e volta para o envio de documentos.
         </p>
-        <Button onClick={enviar} disabled={salvando || !alterado}>
+        <Button onClick={enviar} disabled={salvando || !respondeu}>
           {salvando && <Loader2Icon className="animate-spin" />}
-          Registrar importação
+          {importou === null && respondeu ? "Concluir sem testar" : "Registrar e concluir"}
         </Button>
       </div>
     </>

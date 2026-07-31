@@ -8,6 +8,7 @@ import {
   SearchIcon,
   UploadIcon,
 } from "lucide-react"
+import { toast } from "sonner"
 import { obterReview, rotuloGhe, type Resposta, type Review } from "../api"
 import { Button } from "./ui/button"
 import { ConfidenceScore } from "./ConfidenceScore"
@@ -41,6 +42,8 @@ export function Resultado({ dados, conferenciaAberta, onConferir, onNovo }: Prop
   const avisosDoc = r.avisos_documento ?? []
   const totalAtencao = comAtencao + avisosDoc.length
   const arquivos = Object.entries(dados.downloads)
+  const planilhas = arquivos.filter(([, url]) => !url.endsWith(".json"))
+  const debug = arquivos.filter(([, url]) => url.endsWith(".json"))
 
   const [review, setReview] = useState<Review | null>(null)
   const [carregando, setCarregando] = useState(true)
@@ -104,8 +107,20 @@ export function Resultado({ dados, conferenciaAberta, onConferir, onNovo }: Prop
     setAtivo((atual) => (atual === numero ? 0 : numero))
   }
 
-  function baixar(url: string) {
-    window.open(url, "_blank")
+  // o backend responde com Content-Disposition: attachment, então a âncora
+  // baixa direto e evita a aba que pisca do window.open
+  function baixar(urls: string[], avanca = true) {
+    urls.forEach((url, i) => {
+      window.setTimeout(() => {
+        const link = document.createElement("a")
+        link.href = url
+        link.download = ""
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+      }, i * 400)
+    })
+    if (!avanca) return
     setBaixou(true)
     setAtivo(4)
   }
@@ -113,6 +128,15 @@ export function Resultado({ dados, conferenciaAberta, onConferir, onNovo }: Prop
   function aoSalvarAvaliacao(salvo: Review) {
     setReview(salvo)
     setAtivo(3)
+  }
+
+  function aoRegistrarImportacao(salvo: Review) {
+    toast.success(
+      salvo.import_success == null
+        ? "Avaliação salva. A importação ficou pendente nesta extração."
+        : "Importação registrada. Ciclo desta extração concluído."
+    )
+    onNovo()
   }
 
   const passos = TITULOS.map((titulo, i) => ({
@@ -134,17 +158,12 @@ export function Resultado({ dados, conferenciaAberta, onConferir, onNovo }: Prop
               Siga os quatro passos abaixo: conferir, avaliar, baixar e importar.
             </p>
           </div>
-          <div className="flex shrink-0 flex-col items-end gap-2">
-            <span className="flex items-center gap-2 text-sm text-slate-600">
-              {dados.validacao_ok ? (
-                <><CheckCircle2Icon className="size-4 text-emerald-700" /> Leitores concordam</>
-              ) : (
-                <><AlertTriangleIcon className="size-4 text-amber-700" /> Divergências encontradas</>
-              )}
-            </span>
-            <Button variant="ghost" size="sm" onClick={onNovo}>
-              <UploadIcon /> Novo documento
-            </Button>
+          <div className="flex shrink-0 items-center gap-2 pt-1 text-sm text-slate-600">
+            {dados.validacao_ok ? (
+              <><CheckCircle2Icon className="size-4 text-emerald-700" /> Leitores concordam</>
+            ) : (
+              <><AlertTriangleIcon className="size-4 text-amber-700" /> Divergências encontradas</>
+            )}
           </div>
         </div>
 
@@ -261,21 +280,28 @@ export function Resultado({ dados, conferenciaAberta, onConferir, onNovo }: Prop
             baixou
               ? "Arquivos gerados nesta execução já baixados"
               : review
-                ? `${arquivos.length} arquivos liberados`
+                ? "PGR e PCMSO liberados"
                 : "Liberado depois da avaliação"
           }
           aberto={ativo === 3}
           onAlternar={() => abrir(3)}
         >
           <p className="text-sm text-slate-600">
-            Planilhas no formato de importação do BR NET, mais o JSON da extração.
+            PGR e PCMSO no formato de importação do BR NET.
           </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {arquivos.map(([rotulo, url]) => (
-              <Button key={url} variant="outline" onClick={() => baixar(url)}>
-                {url.endsWith(".json") ? <FileJsonIcon /> : <DownloadIcon />}
-                {rotulo}
-              </Button>
+          <div className="mt-4 flex flex-wrap items-center gap-4">
+            <Button onClick={() => baixar(planilhas.map(([, url]) => url))}>
+              <DownloadIcon /> Baixar planilhas
+            </Button>
+            {debug.map(([rotulo, url]) => (
+              <button
+                key={url}
+                type="button"
+                onClick={() => baixar([url], false)}
+                className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-500 underline-offset-4 hover:text-slate-800 hover:underline"
+              >
+                <FileJsonIcon className="size-3.5" /> {rotulo}
+              </button>
             ))}
           </div>
         </PassoCard>
@@ -299,11 +325,24 @@ export function Resultado({ dados, conferenciaAberta, onConferir, onNovo }: Prop
           onAlternar={() => abrir(4)}
         >
           {review ? (
-            <ImportacaoCard jobId={dados.job_id} review={review} onSalvo={setReview} />
+            <ImportacaoCard
+              jobId={dados.job_id}
+              review={review}
+              onSalvo={aoRegistrarImportacao}
+            />
           ) : (
             <p className="text-sm text-slate-500">Avalie o resultado primeiro.</p>
           )}
         </PassoCard>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 px-1 pb-2">
+        <p className="text-xs text-slate-500">
+          Pode sair a qualquer momento: o que já foi salvo fica no histórico.
+        </p>
+        <Button variant="ghost" size="sm" onClick={onNovo}>
+          <UploadIcon /> Processar outro documento
+        </Button>
       </div>
     </div>
   )
