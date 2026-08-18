@@ -9,6 +9,16 @@ export const ETAPAS = [
   { titulo: "Planilhas PGR e PCMSO", descricao: "montagem no formato de importação", icone: TableIcon },
 ] as const
 
+/** Planilha percorre outro caminho: leitor único (não há segundo leitor para
+ *  validar cruzado) e nenhuma coordenada envolvida. As etapas dizem o que de
+ *  fato acontece — prometer validação cruzada aqui seria falso. */
+const ETAPAS_PLANILHA = [
+  { titulo: "Leitura da planilha", descricao: "openpyxl lendo células, mesclagens e formatação", icone: FileScanIcon },
+  { titulo: "Extração de GHEs", descricao: "riscos, exames e funções por GHE", icone: LayersIcon },
+  { titulo: "Regras de consistência", descricao: "checagem estrutural da extração (sem segundo leitor)", icone: ShieldCheckIcon },
+  { titulo: "Planilhas PGR e PCMSO", descricao: "montagem no formato de importação", icone: TableIcon },
+] as const
+
 type Props = { etapaAtual: number; nomeArquivo: string }
 
 function useSegundos() {
@@ -22,6 +32,7 @@ function useSegundos() {
 
 export function ProcessingStepper({ etapaAtual, nomeArquivo }: Props) {
   const segundos = useSegundos()
+  const etapas = /\.(xlsx|xlsm)$/i.test(nomeArquivo) ? ETAPAS_PLANILHA : ETAPAS
   const mm = Math.floor(segundos / 60)
   const ss = String(segundos % 60).padStart(2, "0")
   return (
@@ -33,7 +44,7 @@ export function ProcessingStepper({ etapaAtual, nomeArquivo }: Props) {
         </div>
         <p className="text-sm text-muted-foreground mb-6 truncate">{nomeArquivo}</p>
         <ol className="flex flex-col gap-0">
-          {ETAPAS.map((etapa, i) => {
+          {etapas.map((etapa, i) => {
             const concluida = i < etapaAtual
             const ativa = i === etapaAtual
             const Icone = etapa.icone
@@ -56,7 +67,7 @@ export function ProcessingStepper({ etapaAtual, nomeArquivo }: Props) {
                       <Icone className="size-4" />
                     )}
                   </div>
-                  {i < ETAPAS.length - 1 && (
+                  {i < etapas.length - 1 && (
                     <div className={cn("w-0.5 flex-1 min-h-8", concluida ? "bg-secondary" : "bg-border")} />
                   )}
                 </div>
