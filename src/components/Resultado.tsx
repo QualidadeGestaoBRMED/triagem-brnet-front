@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import {
   AlertTriangleIcon,
   CheckCircle2Icon,
+  InfoIcon,
   DownloadIcon,
   FileJsonIcon,
   Loader2Icon,
@@ -162,7 +163,18 @@ export function Resultado({ dados, conferenciaAberta, onConferir, onNovo }: Prop
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2 pt-1 text-sm text-slate-600">
-            {dados.validacao_ok ? (
+            {/* Três estados, não dois. Em planilha há um leitor só: dizer
+                "Leitores concordam" com check verde afirmaria uma verificação
+                que não aconteceu — o estado neutro diz o que de fato houve. */}
+            {planilha ? (
+              <span
+                className="flex items-center gap-2"
+                title="Planilha tem um leitor único: não há segundo leitor para conferir a leitura. A conferência humana é a única rede."
+              >
+                <InfoIcon className="size-4 text-slate-500" />
+                Sem validação cruzada · leitor único
+              </span>
+            ) : dados.validacao_ok ? (
               <><CheckCircle2Icon className="size-4 text-emerald-700" /> Leitores concordam</>
             ) : (
               <><AlertTriangleIcon className="size-4 text-amber-700" /> Divergências encontradas</>

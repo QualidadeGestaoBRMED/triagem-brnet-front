@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { InfoIcon } from "lucide-react"
-import { nivelConfianca, type GheDetalhe } from "../api"
+import { ehFocoPlanilha, nivelConfianca, type GheDetalhe } from "../api"
 import { cn } from "../lib/utils"
 
 type Props = {
@@ -20,6 +20,9 @@ export function ConfidenceScore({
   const ancoraRef = useRef<HTMLButtonElement>(null)
   const tooltipId = useId()
   const nivel = nivelConfianca(ghe)
+  // planilha não passa por dois leitores: o rodapé não pode citar um mecanismo
+  // que não rodou neste documento
+  const planilha = ehFocoPlanilha(ghe.foco)
 
   const atualizarPosicao = useCallback(() => {
     const ancora = ancoraRef.current
@@ -115,7 +118,9 @@ export function ConfidenceScore({
             </p>
           )}
           <p className="mt-2 border-t border-slate-700 pt-2 text-[11px] leading-4 text-slate-400">
-            Divergências entre leitores, campos ausentes, avisos do parser e nomes ou perfis suspeitos reduzem a confiança. O indicador orienta a revisão; não substitui a conferência humana.
+            {planilha
+              ? "Campos ausentes, avisos do parser e nomes ou perfis suspeitos reduzem a confiança. Este documento é planilha: não há segundo leitor para conferir a leitura, então o score reflete apenas sinais estruturais — a conferência humana é a única rede."
+              : "Divergências entre leitores, campos ausentes, avisos do parser e nomes ou perfis suspeitos reduzem a confiança. O indicador orienta a revisão; não substitui a conferência humana."}
           </p>
         </div>,
         document.body
