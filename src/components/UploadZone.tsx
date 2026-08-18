@@ -22,8 +22,8 @@ export function UploadZone({ arquivo, onSelecionar, onProcessar }: Props) {
 
   function receber(f: File | undefined) {
     if (!f) return
-    if (!f.name.toLowerCase().endsWith(".pdf")) {
-      setErro("Apenas arquivos PDF são aceitos.")
+    if (!/\.(pdf|xlsx|xlsm)$/i.test(f.name)) {
+      setErro("Envie o PCMSO em PDF (.pdf) ou planilha (.xlsx).")
       return
     }
     setErro(null)
@@ -51,7 +51,7 @@ export function UploadZone({ arquivo, onSelecionar, onProcessar }: Props) {
         <input
           ref={input}
           type="file"
-          accept="application/pdf"
+          accept=".pdf,.xlsx,.xlsm,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           className="sr-only"
           onChange={(e) => receber(e.target.files?.[0])}
         />
@@ -63,7 +63,7 @@ export function UploadZone({ arquivo, onSelecionar, onProcessar }: Props) {
           Arraste e solte ou clique para selecionar
         </p>
         <div className="flex flex-wrap justify-center gap-2 text-xs text-muted-foreground/70">
-          <span>PDF do PCMSO</span>
+          <span>PCMSO em PDF ou planilha</span>
           <span>•</span>
           <span>1 arquivo por vez</span>
         </div>

@@ -7,7 +7,7 @@ import {
   type RenderTask,
 } from "pdfjs-dist"
 import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url"
-import type { FocoDocumento } from "../api"
+import type { FocoPdf } from "../api"
 
 GlobalWorkerOptions.workerSrc = workerSrc
 
@@ -18,7 +18,7 @@ export function PdfSpotlight({
 }: {
   url: string
   pagina: number
-  foco: FocoDocumento | null
+  foco: FocoPdf | null
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
