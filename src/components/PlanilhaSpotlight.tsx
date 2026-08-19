@@ -63,6 +63,11 @@ export function PlanilhaSpotlight({
     <div className="h-full overflow-auto bg-white">
       <div className="sticky top-0 z-10 border-b bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
         Aba: {planilha.aba}
+        {planilha.truncada && (
+          <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-amber-800">
+            prévia truncada — abra a planilha para ver o documento completo
+          </span>
+        )}
         {foco && (
           <span className="ml-2 text-slate-400">
             · linhas {foco.linha_inicial}

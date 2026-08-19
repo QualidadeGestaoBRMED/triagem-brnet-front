@@ -32,6 +32,8 @@ export type Planilha = {
   aba: string
   linhas: string[][]
   mesclas: Array<{ linha: number; linha_fim: number; col: number; col_fim: number }>
+  /** a prévia foi cortada por limite de linhas/colunas */
+  truncada?: boolean
 }
 
 export async function carregarPlanilha(jobId: string): Promise<Planilha> {
@@ -111,8 +113,16 @@ export function nivelConfianca(g: GheDetalhe): "alta" | "media" | "baixa" {
 export function rotuloGhe(ghes: GheDetalhe[], i: number): string {
   const g = ghes[i]
   const repetido = ghes.some((outro, j) => j !== i && outro.setor === g.setor)
-  if (repetido && g.cargos.length === 1) return `${g.setor} — ${g.cargos[0]}`
-  return g.setor
+  if (!repetido) return g.setor
+  // Um mesmo Setor pode vir de mais de um registro: o occupare emite um GHE
+  // por função, e a Foresea divide o GHE quando só parte das funções tem
+  // atividade crítica. Sem desambiguar, a conferência mostra entradas
+  // idênticas e o revisor não sabe qual está abrindo.
+  if (g.cargos.length === 1) return `${g.setor} — ${g.cargos[0]}`
+  const qualificador = g.codigo.includes("/") ? g.codigo.split("/").slice(1).join("/") : null
+  return qualificador
+    ? `${g.setor} — ${qualificador}`
+    : `${g.setor} — ${g.cargos.length} funções`
 }
 
 /** Sessão ausente/expirada: o App volta para a tela de login ao capturar. */
