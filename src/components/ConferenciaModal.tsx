@@ -7,7 +7,13 @@ import {
   ExternalLinkIcon,
   Loader2Icon,
 } from "lucide-react"
-import { nivelConfianca, rotuloGhe, type Exame, type GheDetalhe } from "../api"
+import {
+  ehFocoPlanilha,
+  nivelConfianca,
+  rotuloGhe,
+  type Exame,
+  type GheDetalhe,
+} from "../api"
 import { cn } from "../lib/utils"
 import { Button } from "./ui/button"
 import { DialogLite } from "./ui/dialog-lite"
@@ -22,6 +28,10 @@ type Props = {
 
 const PdfSpotlight = lazy(() =>
   import("./PdfSpotlight").then((modulo) => ({ default: modulo.PdfSpotlight }))
+)
+
+const PlanilhaSpotlight = lazy(() =>
+  import("./PlanilhaSpotlight").then((m) => ({ default: m.PlanilhaSpotlight }))
 )
 
 function perfisDoExame(e: Exame): string[] {
@@ -39,6 +49,8 @@ export function ConferenciaModal({ open, jobId, ghes, onClose }: Props) {
   const [selecionado, setSelecionado] = useState(0)
   const [soAtencao, setSoAtencao] = useState(false)
   const pdfUrl = jobId ? `/api/pdf/${encodeURIComponent(jobId)}` : null
+  // o documento de origem define o visualizador e os rótulos da tela
+  const planilha = ghes.some((g) => ehFocoPlanilha(g.foco))
 
   useEffect(() => {
     if (open) {
@@ -131,7 +143,13 @@ export function ConferenciaModal({ open, jobId, ghes, onClose }: Props) {
               {g && (
                 <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
                   <span>
-                    {g.pagina ? `Página ${g.pagina}` : "Página não identificada"}
+                    {ehFocoPlanilha(g.foco)
+                      ? `Aba ${g.foco.aba} · linha ${g.foco.linha_inicial}${
+                          g.foco.linha_final !== g.foco.linha_inicial ? `–${g.foco.linha_final}` : ""
+                        }`
+                      : g.pagina
+                        ? `Página ${g.pagina}`
+                        : "Página não identificada"}
                     {nivelConfianca(g) === "alta"
                       ? " · sem alertas automáticos"
                       : ` · ${g.pontos_atencao.length} ponto(s) para revisar`}
@@ -217,17 +235,21 @@ export function ConferenciaModal({ open, jobId, ghes, onClose }: Props) {
             <div>
               <h4 className="text-sm font-semibold text-slate-900">Documento</h4>
               <p className="text-xs text-slate-500">
-                {g?.foco?.funcao
-                  ? "GHE destacado · função em evidência"
-                  : g?.foco
-                    ? "Região do GHE destacada"
-                    : "Visualização da página de origem"}
+                {ehFocoPlanilha(g?.foco ?? null)
+                  ? "Linhas do GHE destacadas na planilha"
+                  : g?.foco && "funcao" in g.foco && g.foco.funcao
+                    ? "GHE destacado · função em evidência"
+                    : g?.foco
+                      ? "Região do GHE destacada"
+                      : planilha
+                        ? "Visualização da planilha de origem"
+                        : "Visualização da página de origem"}
               </p>
             </div>
             {pdfUrl && (
               <Button variant="ghost" size="sm"
                 onClick={() => window.open(pdfUrl, "_blank", "noopener,noreferrer")}>
-                <ExternalLinkIcon /> Abrir PDF
+                <ExternalLinkIcon /> {planilha ? "Abrir planilha" : "Abrir PDF"}
               </Button>
             )}
           </div>
@@ -241,7 +263,15 @@ export function ConferenciaModal({ open, jobId, ghes, onClose }: Props) {
                   </span>
                 </div>
               }>
-                <PdfSpotlight url={pdfUrl} pagina={g.foco?.pagina ?? g.pagina ?? 1} foco={g.foco} />
+                {ehFocoPlanilha(g.foco) ? (
+                  <PlanilhaSpotlight jobId={jobId} foco={g.foco} />
+                ) : (
+                  <PdfSpotlight
+                    url={pdfUrl}
+                    pagina={g.foco?.pagina ?? g.pagina ?? 1}
+                    foco={g.foco}
+                  />
+                )}
               </Suspense>
             ) : (
               <div className="grid h-full place-items-center text-sm text-slate-500">

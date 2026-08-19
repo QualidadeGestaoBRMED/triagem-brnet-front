@@ -1,6 +1,9 @@
 export type Risco = { nome: string; grupo: string }
 
-export type FocoDocumento = {
+/** Foco de um GHE no documento. Duas formas, conforme a origem:
+ *  - PDF: banda vertical da página (pontos PDF)
+ *  - planilha: faixa de linhas da aba (a Foresea não tem página nem coordenada) */
+export type FocoPdf = {
   pagina: number
   top: number
   bottom: number
@@ -11,6 +14,32 @@ export type FocoDocumento = {
     left: number
     right: number
   }
+}
+
+export type FocoPlanilha = {
+  aba: string
+  linha_inicial: number
+  linha_final: number
+}
+
+export type FocoDocumento = FocoPdf | FocoPlanilha
+
+export function ehFocoPlanilha(f: FocoDocumento | null): f is FocoPlanilha {
+  return f !== null && "aba" in f
+}
+
+export type Planilha = {
+  aba: string
+  linhas: string[][]
+  mesclas: Array<{ linha: number; linha_fim: number; col: number; col_fim: number }>
+  /** a prévia foi cortada por limite de linhas/colunas */
+  truncada?: boolean
+}
+
+export async function carregarPlanilha(jobId: string): Promise<Planilha> {
+  const resp = await fetch(`/api/planilha/${encodeURIComponent(jobId)}`)
+  if (!resp.ok) throw new Error("Não foi possível carregar a planilha.")
+  return resp.json()
 }
 
 export type Exame = {
@@ -52,6 +81,10 @@ export type Resposta = {
     layout?: string | null
     schema_version?: string
     engine_version?: string
+    /** "pdf" | "planilha" — escolhe o visualizador da conferência */
+    tipo_documento?: "pdf" | "planilha"
+    /** planilha não tem segundo leitor: a validação cruzada não se aplica */
+    validacao_cruzada?: boolean
   }
   resumo: {
     empresa: string
@@ -80,8 +113,16 @@ export function nivelConfianca(g: GheDetalhe): "alta" | "media" | "baixa" {
 export function rotuloGhe(ghes: GheDetalhe[], i: number): string {
   const g = ghes[i]
   const repetido = ghes.some((outro, j) => j !== i && outro.setor === g.setor)
-  if (repetido && g.cargos.length === 1) return `${g.setor} — ${g.cargos[0]}`
-  return g.setor
+  if (!repetido) return g.setor
+  // Um mesmo Setor pode vir de mais de um registro: o occupare emite um GHE
+  // por função, e a Foresea divide o GHE quando só parte das funções tem
+  // atividade crítica. Sem desambiguar, a conferência mostra entradas
+  // idênticas e o revisor não sabe qual está abrindo.
+  if (g.cargos.length === 1) return `${g.setor} — ${g.cargos[0]}`
+  const qualificador = g.codigo.includes("/") ? g.codigo.split("/").slice(1).join("/") : null
+  return qualificador
+    ? `${g.setor} — ${qualificador}`
+    : `${g.setor} — ${g.cargos.length} funções`
 }
 
 /** Sessão ausente/expirada: o App volta para a tela de login ao capturar. */

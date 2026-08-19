@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import {
   AlertTriangleIcon,
   CheckCircle2Icon,
+  InfoIcon,
   DownloadIcon,
   FileJsonIcon,
   Loader2Icon,
@@ -38,6 +39,9 @@ const ROTULO_AVALIACAO: Record<string, string> = {
 
 export function Resultado({ dados, conferenciaAberta, onConferir, onNovo }: Props) {
   const r = dados.resumo
+  // planilha e PDF usam visualizadores diferentes na conferência
+  const planilha = dados.meta?.tipo_documento === "planilha"
+  const origem = planilha ? "a planilha" : "o PDF"
   const comAtencao = dados.ghes_detalhe.filter((g) => g.pontos_atencao.length > 0).length
   const avisosDoc = r.avisos_documento ?? []
   const totalAtencao = comAtencao + avisosDoc.length
@@ -159,7 +163,18 @@ export function Resultado({ dados, conferenciaAberta, onConferir, onNovo }: Prop
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2 pt-1 text-sm text-slate-600">
-            {dados.validacao_ok ? (
+            {/* Três estados, não dois. Em planilha há um leitor só: dizer
+                "Leitores concordam" com check verde afirmaria uma verificação
+                que não aconteceu — o estado neutro diz o que de fato houve. */}
+            {planilha ? (
+              <span
+                className="flex items-center gap-2"
+                title="Planilha tem um leitor único: não há segundo leitor para conferir a leitura. A conferência humana é a única rede."
+              >
+                <InfoIcon className="size-4 text-slate-500" />
+                Sem validação cruzada · leitor único
+              </span>
+            ) : dados.validacao_ok ? (
               <><CheckCircle2Icon className="size-4 text-emerald-700" /> Leitores concordam</>
             ) : (
               <><AlertTriangleIcon className="size-4 text-amber-700" /> Divergências encontradas</>
@@ -195,8 +210,8 @@ export function Resultado({ dados, conferenciaAberta, onConferir, onNovo }: Prop
           estado={estadoDe(1)}
           resumo={
             conferiu
-              ? `${r.ghes.length} registros conferidos lado a lado com o PDF`
-              : `${r.ghes.length} registros extraídos · compare com o PDF antes de avaliar`
+              ? `${r.ghes.length} registros conferidos lado a lado com ${origem}`
+              : `${r.ghes.length} registros extraídos · compare com ${origem} antes de avaliar`
           }
           aberto={ativo === 1}
           onAlternar={() => abrir(1)}
@@ -207,8 +222,9 @@ export function Resultado({ dados, conferenciaAberta, onConferir, onNovo }: Prop
           }
         >
           <p className="text-sm text-slate-600">
-            A conferência abre o PDF ao lado dos dados extraídos, com a região de cada registro
-            destacada. Ao fechar, você segue para a avaliação.
+            A conferência abre {origem} ao lado dos dados extraídos, com {planilha
+              ? "as linhas de cada registro destacadas"
+              : "a região de cada registro destacada"}. Ao fechar, você segue para a avaliação.
           </p>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-sm">
